@@ -1,0 +1,5 @@
+dependencies:
+  - pip:
+      - pysus==1.0.1
+      - pyfabricops==0.5.4
+      - semantic-link-labs==0.14.1

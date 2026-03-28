@@ -1,0 +1,56 @@
+name: Deploy to Fabric
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - src/**
+
+  workflow_dispatch:
+    inputs:
+      deployMode:
+        description: 'Deploy mode'
+        required: true
+        default: selective
+        type: choice
+        options:
+          - selective
+          - specific
+          - full
+      itemsToDeploy:
+        description: 'Items to deploy (comma-separated, only for specific mode)'
+        required: false
+        default: ' '
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+      FAB_TENANT_ID: ${{ secrets.FAB_TENANT_ID }}
+      FAB_CLIENT_ID: ${{ secrets.FAB_CLIENT_ID }}
+      FAB_CLIENT_SECRET: ${{ secrets.FAB_CLIENT_SECRET }}
+      DEPLOY_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.deployMode || 'selective' }}
+      ITEMS_TO_DEPLOY: ${{ github.event_name == 'workflow_dispatch' && inputs.itemsToDeploy || '' }}
+      DIFF_BASE: ${{ github.event.pull_request.base.sha }}
+      DIFF_HEAD: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyfabricops
+
+      - name: Run deploy
+        run: python -X utf8 scripts/deploy.py
