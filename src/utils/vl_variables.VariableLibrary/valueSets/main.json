@@ -1,0 +1,26 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "main",
+  "variableOverrides": [
+    {
+      "name": "workspace_name",
+      "value": "healthy_analytics-PRD"
+    },
+    {
+      "name": "workspace_id",
+      "value": "2ce2ac92-57b3-4ab1-98ce-56686f0cae4d"
+    },
+    {
+      "name": "lakehouse_id",
+      "value": "011c0260-f39e-49b9-bec4-fe16ee695e13"
+    },
+    {
+      "name": "lakehouse_sql_endpoint_connection_string",
+      "value": "iecqp25kjcbudevcdxvmc3z4jy-skwoelftk6yuvggokzug6dfoju.datawarehouse.fabric.microsoft.com"
+    },
+    {
+      "name": "lakehouse_sql_endpoint_id",
+      "value": "09e9b19b-d2ea-4b95-8ae1-741d005b5c4d"
+    }
+  ]
+}
