@@ -132,7 +132,7 @@ if pf.get_workspace(workspace_id, df=False)['displayName'].endswith('DEV'):
     if not years:
         logger.warning(f'No data avaiable within the specified scope ({start_year}-{end_year}).')
     else:
-        logger.success(f'This notebook will extract data from {len(ufs)} state and {len(years)} years.')
+        logger.success(f'This notebook will extract data from {len(ufs)} state ({ufs}) and {len(years)} years ({years}).')
 
 else:
     years = list(range(end_year, start_year - 1, -1))
@@ -145,17 +145,6 @@ else:
         logger.warning(f'No data avaiable within the specified scope ({start_year}-{end_year}).')
     else:
         logger.success(f'This notebook will extract data from {len(ufs)} states and {len(years)} years.')
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-sim.metadata['long_name']
 
 # METADATA ********************
 

@@ -21,6 +21,10 @@
     {
       "name": "lakehouse_sql_endpoint_id",
       "value": "09e9b19b-d2ea-4b95-8ae1-741d005b5c4d"
+    },
+    {
+      "name": "environment_id",
+      "value": "3239afcb-cbff-4b02-9e70-a843f0a1ecdc"
     }
   ]
 }
