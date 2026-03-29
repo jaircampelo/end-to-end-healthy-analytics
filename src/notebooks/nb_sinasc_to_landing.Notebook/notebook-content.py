@@ -38,8 +38,8 @@
 # CELL ********************
 
 # Libs
-import re
 import os
+import re
 import notebookutils
 import pyfabricops as pf
 import sempy.fabric as fabric
