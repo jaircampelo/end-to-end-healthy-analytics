@@ -30,6 +30,12 @@
       "note": "",
       "type": "String",
       "value": ""
+    },
+    {
+      "name": "environment_id",
+      "note": "",
+      "type": "String",
+      "value": ""
     }
   ]
 }
