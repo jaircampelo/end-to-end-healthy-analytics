@@ -76,6 +76,17 @@ if len(notebooks) > 0:
         find_pattern = rf"(?i){re.escape(value_from)}"
         replacements[(r'.*\.py$', find_pattern)] = value_to
 
+    # Replace Fabric placeholder zeros with PRD workspace_id
+    workspace_id_to = next((item.get("value") for item in config_to if item.get("name") == "workspace_id"), None)
+    if workspace_id_to:
+        zero_placeholder = "00000000-0000-0000-0000-000000000000"
+        replacements[(r'.*\.py$', rf"(?i){re.escape(zero_placeholder)}")] = workspace_id_to
+        logger.info(f"Added zero placeholder replacement for workspace_id")
+
+    for nb in notebooks:
+        logger.info(f"Processing notebook: {nb}")
+        pf.find_and_replace(nb, replacements)
+
     for nb in notebooks:
         logger.info(f"Processing notebook: {nb}")
         pf.find_and_replace(nb, replacements)
