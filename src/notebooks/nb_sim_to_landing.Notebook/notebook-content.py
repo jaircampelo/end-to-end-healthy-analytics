@@ -386,3 +386,7 @@ else:
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# MARKDOWN ********************
+
+# ## Don't forget to clean all outputs at the end.
