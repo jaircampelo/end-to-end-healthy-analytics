@@ -61,7 +61,7 @@ notebooks = [item for item in items if item.endswith(".Notebook")]
 if len(notebooks) > 0:
     logger.info(f"Found {len(notebooks)} notebooks to process for lakehouse switching")
 
-    target_variables = ["workspace_id", "lakehouse_id"]
+    target_variables = ["workspace_id", "lakehouse_id", "environment_id"]
 
     replacements = {}
 
