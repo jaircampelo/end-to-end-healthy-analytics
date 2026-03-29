@@ -220,7 +220,7 @@ df_source_files = df_source_files.withColumn(
 # Define function to transform source_size column to int
 def convert_to_mb(col_name):
     '''
-    Cast a file size column into an integer type and standadize the format to 'mb'
+    Cast a column with file size values into an integer type and standadize the format to 'mb'
     '''
     number = F.regexp_extract(F.col(col_name), r'([\d.]+)', 1).cast('double')
     unit = F.regexp_extract(F.col(col_name), r'([a-zA-Z]+)', 1)
