@@ -38,6 +38,7 @@
 # CELL ********************
 
 # Libs
+import re
 import os
 import notebookutils
 import pyfabricops as pf
@@ -88,7 +89,7 @@ lakehouses = notebookutils.lakehouse.list()
 lakehouse = next((item for item in lakehouses if item.get('displayName') == lakehouse_name), '')
 lakehouse_path = lakehouse['properties']['abfsPath']
 landing_files_path = f'{lakehouse_path}/Files/Landing/SIM'
-landing_meta_table_path = f'{lakehouse_path}/Tables/dbo/SimLandingMeta' # Track what was copied from SIM to Landing
+landing_meta_table_path = f'{lakehouse_path}/Tables/metadata/landing_meta_table' # Track what was copied from SIM to Landing
 
 print(f'Files path: {landing_files_path}')
 print(f'Metatable path: {landing_meta_table_path}')
@@ -117,30 +118,8 @@ sim = SIM().load()
 
 # CELL ********************
 
-years = []
-for year in list(range(datetime.now().year, 2020, -1)):
-    try:
-        file = sim.get_files('CID10', uf='PA', year=year)
-        if file:
-            logger.success(f'Most recent data for PA is from {year}')
-            years.append(year)
-            break
-        else:
-            logger.warning(f'No data found for PA-{year}')
-    except Exception:
-        print('No data avaiable for this years, add more years in the scope.')
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
 # Project scope
-start_year = 2018
+start_year = 2020
 end_year = datetime.now().year
 
 # In this project, we only have 2 workspaces: DEV, for the develop branch, and PRD, for the main branch.
@@ -153,7 +132,7 @@ if pf.get_workspace(workspace_id, df=False)['displayName'].endswith('DEV'):
     if not years:
         logger.warning(f'No data avaiable within the specified scope ({start_year}-{end_year}).')
     else:
-        logger.success(f'This notebook will extract data from {len(ufs)} state and {len(years)} year.')
+        logger.success(f'This notebook will extract data from {len(ufs)} state and {len(years)} years.')
 
 else:
     years = list(range(end_year, start_year - 1, -1))
@@ -166,6 +145,17 @@ else:
         logger.warning(f'No data avaiable within the specified scope ({start_year}-{end_year}).')
     else:
         logger.success(f'This notebook will extract data from {len(ufs)} states and {len(years)} years.')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+sim.metadata['long_name']
 
 # METADATA ********************
 
@@ -196,7 +186,6 @@ for uf in ufs:
                     'file_name':            info['name'],
                     'source_size':          info['size'],
                     'source_last_update':   info['last_update'],
-                    'year':                 info['year'],
                 })
         except Exception as e:
             print(f'Error at {uf}-{year}: {e}')
@@ -205,10 +194,6 @@ qtt_files_found = len(df_source_files)
 qtt_files_not_found = len(files_not_found)
 
 df_source_files = spark.createDataFrame(df_source_files)
-df_source_files = df_source_files.withColumn(
-        'uf',
-        F.substring(F.col('file_name'), -10, 2).alias('uf')
-)
 
 logger.info(f'Files not found: {qtt_files_not_found}')
 logger.info(f'Files found: {qtt_files_found}')
@@ -224,20 +209,23 @@ display(df_source_files.limit(10))
 
 # MARKDOWN ********************
 
-# ## Mount target path
+# ## Mount target path and group name
 
 # CELL ********************
 
-# For each file, creates a path for te respective year
+# For each file, creates a path for te respective year and add a column with the name of the group
 df_source_files = df_source_files.withColumn(
     'target_path',
     F.concat(
         F.lit(f'{landing_files_path}/'),
-        F.col('year'),
+        F.regexp_extract(F.col('file_name'), r'(\d{4})', 1),
         F.lit('/'),
-        F.substring(F.col('file_name'),1, 8),
+        F.substring_index(F.col('file_name'), '.', 1),
         F.lit('.parquet')
     )
+).withColumn(
+    'organization_name',
+    F.lit(sim.metadata['long_name'])
 )
 
 # Define function to transform source_size column to int
@@ -256,11 +244,10 @@ def convert_to_mb(col_name):
     ).cast('double')
 
 df_source_files = df_source_files.select(
+    F.col('organization_name'),
     F.col('file_name'),
     F.round(convert_to_mb('source_size'), 2).alias('source_size_mb'),
     F.to_timestamp(F.col('source_last_update'), 'yyyy-MM-dd hh:mma').alias('source_last_update'),
-    F.col('uf'),
-    F.col('year'),
     F.col('target_path'),
 )
 
@@ -282,11 +269,10 @@ display(df_source_files)
 
 # Create landing_meta_table
 landing_meta_schema = StructType([
+    StructField('organization_name',    StringType(),       False),
     StructField('file_name',            StringType(),       False),
     StructField('source_size_mb',       DoubleType(),       False),
     StructField('source_last_update',   TimestampType(),    False),
-    StructField('year',                 IntegerType(),      False),
-    StructField('uf',                   StringType(),       False),
     StructField('target_path',          StringType(),       True),
     StructField('copied_at',            TimestampType(),    True),
 ])
@@ -299,21 +285,20 @@ spark.createDataFrame([], landing_meta_schema) \
 df_landing_meta = spark.read.format('delta').load(landing_meta_table_path)
 
 # Give the last copied info per file_name
-df_landing_meta_latest = df_landing_meta.groupBy('uf').agg(
-        F.max('year').alias('last_copied_source_year')
+df_landing_meta_latest = df_landing_meta.groupBy('file_name').agg(
+        F.max('source_last_update').alias('last_copied_source_mtime')
     )
 
 # Find candidates to copy
 df_candidates = (
     df_source_files
-    .join(df_landing_meta_latest, on='uf', how='left')
-    .filter(F.col('year') > F.coalesce(F.col('last_copied_source_year'), F.lit(1970)))
+    .join(df_landing_meta_latest, on='file_name', how='left')
+    .filter(F.col('source_last_update') > F.coalesce(F.col('last_copied_source_mtime'), F.lit('1970-01-01')))
     .select(
+        'organization_name',
         'file_name',
         'source_last_update',
         'source_size_mb',
-        'year',
-        'uf',
         'target_path',
     )
 )
@@ -339,42 +324,43 @@ if df_candidates.isEmpty():
 else:
     # Candidates from DataFrame to List to iterate
     candidates = df_candidates.select(
+        'organization_name',
         'file_name',
         'source_last_update',
         'source_size_mb',
-        'year',
-        'uf',
         'target_path',
     ).collect()
 
     # Download files and prepare for update landing_meta_table
     downloaded_files = []
     for row in candidates:
-        file_name = row['file_name']
-        source_last_update = row['source_last_update']
-        source_size_mb = row['source_size_mb']
-        year = row['year']
-        uf = row['uf']
-        target_path = row['target_path']
+        organization_name   = row['organization_name']
+        file_name           = row['file_name']
+        source_last_update  = row['source_last_update']
+        source_size_mb      = row['source_size_mb']
+        target_path         = row['target_path']
+        year                = re.search(r'\d{4}', row['file_name']).group()
+        uf                  = re.search(r'([A-Za-z]{2})(?=\d{4})', row['file_name']).group()
 
         try:
             # Download files
+            logger.info(f'Trying to downloading {file_name}')
             files = sim.get_files('CID10', uf=uf, year=year)
             file_obj = next((f for f in files if f.basename == file_name), None)
             if file_obj is None:
-                print(f'File not found: {file_name}')
-                continue
+                logger.error(f'File not found: {file_name}')
+            else:
+                logger.success(f'Successfully downloaded {file_name}.')  
             df_pandas = file_obj.download().to_dataframe()
             df = spark.createDataFrame(df_pandas)
             df.write.mode('overwrite').parquet(target_path)
 
             # Record Metadata
             downloaded_files.append({
+                'organization_name':    organization_name,
                 'file_name':            file_name,
                 'source_last_update':   source_last_update,
                 'source_size_mb':       source_size_mb,
-                'year':                 year,
-                'uf':                   uf,
                 'target_path':          target_path,
                 'copied_at':            datetime.now()
             })
